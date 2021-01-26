@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework Condition="'$(OS)' == 'Windows_NT'">net462</TargetFramework>
+    <TargetFramework Condition="'$(OS)' != 'Windows_NT'">netcoreapp3.1</TargetFramework>
+    <LangVersion>9</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.25.0" />
+    <PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" Version="2.16.8" />
+    <PackageReference Include="Mjcheetham.PromptToolkit" Version="0.2.1-beta" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
+    <PackageReference Include="Microsoft.Identity.Client.Desktop" Version="4.25.0" />
+  </ItemGroup>
+
+</Project>
