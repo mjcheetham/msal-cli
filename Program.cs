@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -33,15 +32,16 @@ namespace msal
             var prompt = new Prompt(console);
 
             ActionType actionType = prompt.AskOption<ActionType>("Select an action:");
-            Uri authority = GetAuthority(console, prompt, PreProd, Prod);
 
-            string redirectUri = null;
+            Uri? authority = null;
+            string? redirectUri = null;
+            string? clientId = null;
             if (actionType != ActionType.ListAccounts)
             {
+                authority = GetAuthority(console, prompt, PreProd, Prod);
                 redirectUri = GetRedirectUri(console, prompt, Localhost);
+                clientId = GetClientId(console, prompt, TestApp, Gcm, VisualStudio);
             }
-
-            string clientId = GetClientId(console, prompt, TestApp, Gcm, VisualStudio);
 
 #if NETFRAMEWORK
             bool useWam = prompt.AskBoolean("Use the WAM OS broker?", true);
@@ -90,7 +90,7 @@ namespace msal
                     {
                         string[] scopes = GetScopes(prompt, AzureDevOps, GraphUserRead);
 
-                        if (!TryGetAccountAsync(app, prompt, out string accountHint))
+                        if (!TryGetAccountAsync(app, prompt, out string? accountHint))
                         {
                             console.WriteLineFailure("No existing accounts!");
                             return;
@@ -193,7 +193,7 @@ namespace msal
             return clientId;
         }
 
-        private static bool TryGetAccountAsync(IPublicClientApplication app, Prompt prompt, out string account)
+        private static bool TryGetAccountAsync(IPublicClientApplication app, Prompt prompt, out string? account)
         {
             account = null;
 
@@ -226,8 +226,8 @@ namespace msal
         private static async Task ConfigureCacheAsync(Prompt prompt, IPublicClientApplication app)
         {
             string cacheFilePath;
-            string osxKcService = null;
-            string osxKcAccount = null;
+            string? osxKcService = null;
+            string? osxKcAccount = null;
             var cacheType = prompt.AskOption<CacheType>("Select token cache to use:");
             switch (cacheType)
             {
@@ -258,10 +258,10 @@ namespace msal
                     break;
             }
 
-            string cacheDirectory = Path.GetDirectoryName(cacheFilePath);
+            string cacheDirectory = Path.GetDirectoryName(cacheFilePath)!;
             string cacheFileName = Path.GetFileName(cacheFilePath);
             var storagePropsBuilder = new StorageCreationPropertiesBuilder(
-                cacheFileName, cacheDirectory, app.AppConfig.ClientId);
+                cacheFileName, cacheDirectory);
 
             if (PlatformUtils.IsMacOS())
             {
@@ -349,17 +349,24 @@ namespace msal
         }
 
         private static async Task<AuthenticationResult> AcquireTokenSilentAsync(
-            IPublicClientApplication pca, string[] scopes, string loginHint)
+            IPublicClientApplication pca, string[] scopes, string? loginHint)
         {
             return await pca.AcquireTokenSilent(scopes, loginHint).ExecuteAsync();
         }
 
-        private static IPublicClientApplication BuildPca(Uri authority, string clientId, string redirectUri,
+        private static IPublicClientApplication BuildPca(Uri? authority, string? clientId, string? redirectUri,
             bool useWam)
         {
-            var builder = PublicClientApplicationBuilder.Create(clientId)
-                .WithAuthority(authority)
-                .WithRedirectUri(redirectUri);
+            // Use dummy client ID if we're only listing accounts in the cache
+            clientId ??= Guid.NewGuid().ToString("D");
+
+            var builder = PublicClientApplicationBuilder.Create(clientId);
+
+            if (authority != null)
+                builder = builder.WithAuthority(authority);
+
+            if (redirectUri != null)
+                builder = builder.WithRedirectUri(redirectUri);
 
             if (useWam)
             {
