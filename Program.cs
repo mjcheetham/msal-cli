@@ -18,10 +18,12 @@ namespace msal
 {
     public static class Program
     {
+        private const string MicrosoftCorpTenant = "72f988bf-86f1-41af-91ab-2d7cd011db47";
         private const string AzureDevOps = "499b84ac-1321-427f-aa17-267ca6975798/.default";
         private const string GraphUserRead = "user.read";
         private const string TestApp = "1d18b3b0-251b-4714-a02a-9956cec86c2d";
         private const string VisualStudio = "872cd9fa-d31f-45e0-9eab-6e460a02d1f1";
+        private const string VisualStudioNew = "04f0c124-f2bc-4f59-8241-bf6df9866bbd";
         private const string Gcm = "d735b71b-9eee-4a4f-ad23-421660877ba6";
         private const string PreProd = "https://login.windows-ppe.net";
         private const string Prod = "https://login.microsoftonline.com";
@@ -41,7 +43,7 @@ namespace msal
             {
                 authority = GetAuthority(console, prompt, PreProd, Prod);
                 redirectUri = GetRedirectUri(console, prompt, Localhost);
-                clientId = GetClientId(console, prompt, TestApp, Gcm, VisualStudio);
+                clientId = GetClientId(console, prompt, TestApp, Gcm, VisualStudio, VisualStudioNew);
             }
 
 #if NETFRAMEWORK
@@ -153,6 +155,7 @@ namespace msal
                 TenantType.Common => new Uri(authorityBase, "common"),
                 TenantType.Consumers => new Uri(authorityBase, "consumers"),
                 TenantType.Organizations => new Uri(authorityBase, "organizations"),
+                TenantType.MicrosoftCorp => new Uri(authorityBase, MicrosoftCorpTenant),
                 _ => new Uri(authorityBase, prompt.AskString("Enter the tenant ID:")),
             };
             console.WriteLineInfo("Authority is {0}", authority);
@@ -176,7 +179,7 @@ namespace msal
         }
 
         private static string GetClientId(IConsole console, Prompt prompt, string testApp, string gcm,
-            string visualStudio)
+            string visualStudio, string visualStudioNew)
         {
             ClientType clientType = prompt.AskOption<ClientType>("Select a client ID:");
             string clientId = clientType switch
@@ -184,6 +187,7 @@ namespace msal
                 ClientType.TestApp => testApp,
                 ClientType.GitCredentialManager => gcm,
                 ClientType.VisualStudio => visualStudio,
+                ClientType.VisualStudioNew => visualStudioNew,
                 _ => prompt.AskString("Enter custom client ID:")
             };
             if (clientType != ClientType.Custom)
@@ -409,6 +413,7 @@ namespace msal
             Common,
             Consumers,
             Organizations,
+            MicrosoftCorp,
             Custom,
         }
 
@@ -417,6 +422,7 @@ namespace msal
             TestApp,
             GitCredentialManager,
             VisualStudio,
+            VisualStudioNew,
             Custom,
         }
 
