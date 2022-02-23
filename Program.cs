@@ -11,7 +11,6 @@ using Prompt = Mjcheetham.PromptToolkit.Prompt;
 
 #if NETFRAMEWORK
 using Microsoft.Identity.Client.Desktop;
-using Microsoft.Identity.Client.MsaPassthrough;
 #endif
 
 namespace msal
@@ -390,7 +389,9 @@ namespace msal
                 builder.WithExperimentalFeatures();
                 builder.WithWindowsBroker();
                 if (useMsaPt)
-                    builder.WithMsaPassthrough();
+                   builder.WithWindowsBrokerOptions(new WindowsBrokerOptions{
+                       MsaPassthrough = true
+                   });
 #endif
             }
 

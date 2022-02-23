@@ -9,13 +9,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Identity.Client" Version="4.27.0" />
-    <PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" Version="2.18.0" />
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.41.0" />
+    <PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" Version="2.19.5" />
     <PackageReference Include="Mjcheetham.PromptToolkit" Version="0.2.1-beta" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
-    <PackageReference Include="Microsoft.Identity.Client.Desktop" Version="4.27.0" />
+    <PackageReference Include="Microsoft.Identity.Client.Desktop" Version="4.41.0" />
   </ItemGroup>
 
 </Project>
