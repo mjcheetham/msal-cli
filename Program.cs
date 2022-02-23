@@ -20,6 +20,7 @@ namespace msal
     {
         private const string MicrosoftCorpTenant = "72f988bf-86f1-41af-91ab-2d7cd011db47";
         private const string AzureDevOps = "499b84ac-1321-427f-aa17-267ca6975798/.default";
+        private const string AzureDevOpsCodeFull = "499b84ac-1321-427f-aa17-267ca6975798/vso.code_full";
         private const string GraphUserRead = "user.read";
         private const string TestApp = "1d18b3b0-251b-4714-a02a-9956cec86c2d";
         private const string VisualStudio = "872cd9fa-d31f-45e0-9eab-6e460a02d1f1";
@@ -48,11 +49,17 @@ namespace msal
 
 #if NETFRAMEWORK
             bool useWam = prompt.AskBoolean("Use the WAM OS broker?", true);
+            bool useMsaPt = false;
+            if (useWam)
+            {
+                useMsaPt = prompt.AskBoolean("Enable MSA-PT?", false);
+            }
 #else
             bool useWam = false;
+            bool useMsaPt = false;
 #endif
 
-            IPublicClientApplication app = BuildPca(authority, clientId, redirectUri, useWam);
+            IPublicClientApplication app = BuildPca(authority, clientId, redirectUri, useWam, useMsaPt);
 
             await ConfigureCacheAsync(prompt, app);
 
@@ -67,7 +74,9 @@ namespace msal
                         promptType = GetPrompt(prompt);
                     }
 
-                    string[] scopes = GetScopes(prompt, AzureDevOps, GraphUserRead);
+                    string[] scopes = GetScopes(prompt, AzureDevOps, AzureDevOpsCodeFull, GraphUserRead);
+
+                    console.WriteLineInfo("Scopes are {0}", string.Join(", ", scopes));
 
                     try
                     {
@@ -91,7 +100,7 @@ namespace msal
                 {
                     try
                     {
-                        string[] scopes = GetScopes(prompt, AzureDevOps, GraphUserRead);
+                        string[] scopes = GetScopes(prompt, AzureDevOps, AzureDevOpsCodeFull, GraphUserRead);
 
                         if (!TryGetAccountAsync(app, prompt, out string? accountHint))
                         {
@@ -284,12 +293,14 @@ namespace msal
             CustomFile,
         }
 
-        private static string[] GetScopes(Prompt prompt, string azureDevOps, string graphUserRead)
+        private static string[] GetScopes(
+            Prompt prompt, string azureDevOps, string azureDevOpsCodeFull, string graphUserRead)
         {
             ScopeSet scopeSet = prompt.AskOption<ScopeSet>("Select scopes:");
             string[] scopes = scopeSet switch
             {
                 ScopeSet.AzureDevOps => new[] {azureDevOps},
+                ScopeSet.AzureDevOpsCodeFull => new[] {azureDevOpsCodeFull},
                 ScopeSet.MicrosoftGraph => new[] {graphUserRead},
                 _ => prompt.AskString("Enter custom scopes:").Split(' ')
             };
@@ -360,7 +371,7 @@ namespace msal
         }
 
         private static IPublicClientApplication BuildPca(Uri? authority, string? clientId, string? redirectUri,
-            bool useWam)
+            bool useWam, bool useMsaPt)
         {
             // Use dummy client ID if we're only listing accounts in the cache
             clientId ??= Guid.NewGuid().ToString("D");
@@ -378,7 +389,8 @@ namespace msal
 #if NETFRAMEWORK
                 builder.WithExperimentalFeatures();
                 builder.WithWindowsBroker();
-                builder.WithMsaPassthrough();
+                if (useMsaPt)
+                    builder.WithMsaPassthrough();
 #endif
             }
 
@@ -448,6 +460,7 @@ namespace msal
         {
             MicrosoftGraph,
             AzureDevOps,
+            AzureDevOpsCodeFull,
             Custom,
         }
     }
