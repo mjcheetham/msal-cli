@@ -17,6 +17,7 @@ namespace msal
 {
     public static class Program
     {
+        private const string MicrosoftServicesTenant = "f8cdef31-a31e-4b4a-93e4-5f571e91255a";
         private const string MicrosoftCorpTenant = "72f988bf-86f1-41af-91ab-2d7cd011db47";
         private const string AzureDevOps = "499b84ac-1321-427f-aa17-267ca6975798/.default";
         private const string AzureDevOpsCodeFull = "499b84ac-1321-427f-aa17-267ca6975798/vso.code_full";
@@ -164,6 +165,7 @@ namespace msal
                 TenantType.Consumers => new Uri(authorityBase, "consumers"),
                 TenantType.Organizations => new Uri(authorityBase, "organizations"),
                 TenantType.MicrosoftCorp => new Uri(authorityBase, MicrosoftCorpTenant),
+                TenantType.MicrosoftServices => new Uri(authorityBase, MicrosoftServicesTenant),
                 _ => new Uri(authorityBase, prompt.AskString("Enter the tenant ID:")),
             };
             console.WriteLineInfo("Authority is {0}", authority);
@@ -427,6 +429,7 @@ namespace msal
             Consumers,
             Organizations,
             MicrosoftCorp,
+            MicrosoftServices,
             Custom,
         }
 
