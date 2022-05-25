@@ -21,6 +21,7 @@ namespace msal
         private const string MicrosoftCorpTenant = "72f988bf-86f1-41af-91ab-2d7cd011db47";
         private const string AzureDevOps = "499b84ac-1321-427f-aa17-267ca6975798/.default";
         private const string AzureDevOpsCodeFull = "499b84ac-1321-427f-aa17-267ca6975798/vso.code_full";
+        private const string GitHubEMU = "12f6db80-0741-4a7e-b9c5-b85d737b3a31/user_impersonation";
         private const string GraphUserRead = "user.read";
         private const string TestApp = "1d18b3b0-251b-4714-a02a-9956cec86c2d";
         private const string VisualStudio = "872cd9fa-d31f-45e0-9eab-6e460a02d1f1";
@@ -74,7 +75,7 @@ namespace msal
                         promptType = GetPrompt(prompt);
                     }
 
-                    string[] scopes = GetScopes(prompt, AzureDevOps, AzureDevOpsCodeFull, GraphUserRead);
+                    string[] scopes = GetScopes(prompt, AzureDevOps, AzureDevOpsCodeFull, GraphUserRead, GitHubEMU);
 
                     console.WriteLineInfo("Scopes are {0}", string.Join(", ", scopes));
 
@@ -100,7 +101,7 @@ namespace msal
                 {
                     try
                     {
-                        string[] scopes = GetScopes(prompt, AzureDevOps, AzureDevOpsCodeFull, GraphUserRead);
+                        string[] scopes = GetScopes(prompt, AzureDevOps, AzureDevOpsCodeFull, GraphUserRead, GitHubEMU);
 
                         if (!TryGetAccountAsync(app, prompt, out string? accountHint))
                         {
@@ -295,7 +296,8 @@ namespace msal
         }
 
         private static string[] GetScopes(
-            Prompt prompt, string azureDevOps, string azureDevOpsCodeFull, string graphUserRead)
+            Prompt prompt, string azureDevOps, string azureDevOpsCodeFull, string graphUserRead,
+            string ghEmu)
         {
             ScopeSet scopeSet = prompt.AskOption<ScopeSet>("Select scopes:");
             string[] scopes = scopeSet switch
@@ -303,6 +305,7 @@ namespace msal
                 ScopeSet.AzureDevOps => new[] {azureDevOps},
                 ScopeSet.AzureDevOpsCodeFull => new[] {azureDevOpsCodeFull},
                 ScopeSet.MicrosoftGraph => new[] {graphUserRead},
+                ScopeSet.GitHubEmu => new [] {ghEmu},
                 _ => prompt.AskString("Enter custom scopes:").Split(' ')
             };
             return scopes;
@@ -465,6 +468,7 @@ namespace msal
             MicrosoftGraph,
             AzureDevOps,
             AzureDevOpsCodeFull,
+            GitHubEmu,
             Custom,
         }
     }

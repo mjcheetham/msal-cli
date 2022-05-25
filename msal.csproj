@@ -6,16 +6,17 @@
     <TargetFramework Condition="'$(OS)' != 'Windows_NT'">net6.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
+    <PublishSingleFile Condition="'$(OS)' != 'Windows_NT'">true</PublishSingleFile>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Identity.Client" Version="4.43.2" />
-    <PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" Version="2.20.1" />
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.44.0" />
+    <PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" Version="2.21.0" />
     <PackageReference Include="Mjcheetham.PromptToolkit" Version="0.2.1-beta" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
-    <PackageReference Include="Microsoft.Identity.Client.Desktop" Version="4.43.2" />
+    <PackageReference Include="Microsoft.Identity.Client.Desktop" Version="4.44.0" />
   </ItemGroup>
 
 </Project>
