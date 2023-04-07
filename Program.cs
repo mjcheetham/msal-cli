@@ -1,17 +1,15 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.Identity.Client;
+using Microsoft.Identity.Client.Broker;
 using Microsoft.Identity.Client.Extensions.Msal;
 using Mjcheetham.PromptToolkit;
 using MsalPrompt = Microsoft.Identity.Client.Prompt;
 using Prompt = Mjcheetham.PromptToolkit.Prompt;
-
-#if NETFRAMEWORK
-using Microsoft.Identity.Client.Desktop;
-#endif
 
 namespace msal
 {
@@ -19,7 +17,8 @@ namespace msal
     {
         private const string MicrosoftServicesTenant = "f8cdef31-a31e-4b4a-93e4-5f571e91255a";
         private const string MicrosoftCorpTenant = "72f988bf-86f1-41af-91ab-2d7cd011db47";
-        private const string AzureDevOps = "499b84ac-1321-427f-aa17-267ca6975798/.default";
+        private const string MatthewCheethamTenant = "6ac55484-1f79-4c04-ba1b-74e13182258e";
+        private const string AzureDevOpsDefault = "499b84ac-1321-427f-aa17-267ca6975798/.default";
         private const string AzureDevOpsCodeFull = "499b84ac-1321-427f-aa17-267ca6975798/vso.code_full";
         private const string GitHubEMU = "12f6db80-0741-4a7e-b9c5-b85d737b3a31/user_impersonation";
         private const string GraphUserRead = "user.read";
@@ -27,6 +26,7 @@ namespace msal
         private const string VisualStudio = "872cd9fa-d31f-45e0-9eab-6e460a02d1f1";
         private const string VisualStudioNew = "04f0c124-f2bc-4f59-8241-bf6df9866bbd";
         private const string Gcm = "d735b71b-9eee-4a4f-ad23-421660877ba6";
+        private const string CodesignClient = "70d4c0bd-fe5f-4266-aa7f-f4d2b540c4be";
         private const string PreProd = "https://login.windows-ppe.net";
         private const string Prod = "https://login.microsoftonline.com";
         private const string Localhost = "http://localhost";
@@ -38,29 +38,37 @@ namespace msal
 
             ActionType actionType = prompt.AskOption<ActionType>("Select an action:");
 
+            bool useBroker = false;
+            if (OperatingSystem.IsWindows())
+            {
+                useBroker = prompt.AskBoolean("Use the OS broker?", true);
+            }
+
             Uri? authority = null;
             string? redirectUri = null;
             string? clientId = null;
             if (actionType != ActionType.ListAccounts)
             {
-                authority = GetAuthority(console, prompt, PreProd, Prod);
-                redirectUri = GetRedirectUri(console, prompt, Localhost);
-                clientId = GetClientId(console, prompt, TestApp, Gcm, VisualStudio, VisualStudioNew);
+                authority = GetAuthority(console, prompt);
+                clientId = GetClientId(console, prompt);
+                redirectUri = useBroker
+                    ? null
+                    : GetRedirectUri(console, prompt);
             }
 
-#if NETFRAMEWORK
-            bool useWam = prompt.AskBoolean("Use the WAM OS broker?", true);
             bool useMsaPt = false;
-            if (useWam)
+            bool listOsAccounts = false;
+            if (useBroker)
             {
                 useMsaPt = prompt.AskBoolean("Enable MSA-PT?", false);
-            }
-#else
-            bool useWam = false;
-            bool useMsaPt = false;
-#endif
 
-            IPublicClientApplication app = BuildPca(authority, clientId, redirectUri, useWam, useMsaPt);
+                if (actionType != ActionType.AcquireTokenInteractive)
+                {
+                    listOsAccounts = prompt.AskBoolean("List OS accounts?", true);
+                }
+            }
+
+            IPublicClientApplication app = BuildPca(authority, clientId, redirectUri, useBroker, useMsaPt, listOsAccounts);
 
             await ConfigureCacheAsync(prompt, app);
 
@@ -68,14 +76,17 @@ namespace msal
             {
                 case ActionType.AcquireTokenInteractive:
                 {
-                    FlowType flowType = prompt.AskOption<FlowType>("Select a flow:");
+                    FlowType flowType = useBroker
+                        ? FlowType.SystemWebView
+                        : prompt.AskOption<FlowType>("Select a flow:");
+
                     MsalPrompt? promptType = null;
                     if (flowType != FlowType.DeviceCode)
                     {
                         promptType = GetPrompt(prompt);
                     }
 
-                    string[] scopes = GetScopes(prompt, AzureDevOps, AzureDevOpsCodeFull, GraphUserRead, GitHubEMU);
+                    string[] scopes = GetScopes(prompt, AzureDevOpsDefault, AzureDevOpsCodeFull, GraphUserRead, GitHubEMU);
 
                     console.WriteLineInfo("Scopes are {0}", string.Join(", ", scopes));
 
@@ -101,9 +112,9 @@ namespace msal
                 {
                     try
                     {
-                        string[] scopes = GetScopes(prompt, AzureDevOps, AzureDevOpsCodeFull, GraphUserRead, GitHubEMU);
+                        string[] scopes = GetScopes(prompt, AzureDevOpsDefault, AzureDevOpsCodeFull, GraphUserRead, GitHubEMU);
 
-                        if (!TryGetAccountAsync(app, prompt, out string? accountHint))
+                        if (!TryGetAccountAsync(app, prompt, out IAccount? account))
                         {
                             console.WriteLineFailure("No existing accounts!");
                             return;
@@ -111,7 +122,7 @@ namespace msal
 
                         console.WriteLineAlert("Performing silent authentication...");
 
-                        AuthenticationResult result = await AcquireTokenSilentAsync(app, scopes, accountHint);
+                        AuthenticationResult result = await AcquireTokenSilentAsync(app, scopes, account!);
 
                         WriteSuccess(console, prompt, result);
                     }
@@ -149,14 +160,14 @@ namespace msal
             }
         }
 
-        private static Uri GetAuthority(IConsole console, Prompt prompt, string ppe, string prod)
+        private static Uri GetAuthority(IConsole console, Prompt prompt)
         {
             AuthorityType authorityType = prompt.AskOption<AuthorityType>("Select an authority:");
             Uri authorityBase = authorityType switch
             {
-                AuthorityType.AzurePreproduction => new Uri(ppe),
-                AuthorityType.AzureProduction => new Uri(prod),
-                _ => new Uri(prod)
+                AuthorityType.AzurePreproduction => new Uri(PreProd),
+                AuthorityType.AzureProduction => new Uri(Prod),
+                _ => new Uri(Prod)
             };
 
             TenantType tenantType = prompt.AskOption<TenantType>("Select a tenant:");
@@ -167,18 +178,19 @@ namespace msal
                 TenantType.Organizations => new Uri(authorityBase, "organizations"),
                 TenantType.MicrosoftCorp => new Uri(authorityBase, MicrosoftCorpTenant),
                 TenantType.MicrosoftServices => new Uri(authorityBase, MicrosoftServicesTenant),
+                TenantType.MatthewCheetham => new Uri(authorityBase, MatthewCheethamTenant),
                 _ => new Uri(authorityBase, prompt.AskString("Enter the tenant ID:")),
             };
             console.WriteLineInfo("Authority is {0}", authority);
             return authority;
         }
 
-        private static string GetRedirectUri(IConsole console, Prompt prompt, string localhost)
+        private static string GetRedirectUri(IConsole console, Prompt prompt)
         {
             RedirectType redirectType = prompt.AskOption<RedirectType>("Select a redirect URL:");
             string redirectUri = redirectType switch
             {
-                RedirectType.Localhost => localhost,
+                RedirectType.Localhost => Localhost,
                 _ => prompt.AskString("Enter custom redirect URL:")
             };
             if (redirectType != RedirectType.Custom)
@@ -189,16 +201,16 @@ namespace msal
             return redirectUri;
         }
 
-        private static string GetClientId(IConsole console, Prompt prompt, string testApp, string gcm,
-            string visualStudio, string visualStudioNew)
+        private static string GetClientId(IConsole console, Prompt prompt)
         {
             ClientType clientType = prompt.AskOption<ClientType>("Select a client ID:");
             string clientId = clientType switch
             {
-                ClientType.TestApp => testApp,
-                ClientType.GitCredentialManager => gcm,
-                ClientType.VisualStudio => visualStudio,
-                ClientType.VisualStudioNew => visualStudioNew,
+                ClientType.TestApp => TestApp,
+                ClientType.GitCredentialManager => Gcm,
+                ClientType.VisualStudio => VisualStudio,
+                ClientType.VisualStudioNew => VisualStudioNew,
+                ClientType.CodesignClient => CodesignClient,
                 _ => prompt.AskString("Enter custom client ID:")
             };
             if (clientType != ClientType.Custom)
@@ -209,18 +221,21 @@ namespace msal
             return clientId;
         }
 
-        private static bool TryGetAccountAsync(IPublicClientApplication app, Prompt prompt, out string? account)
+        private static bool TryGetAccountAsync(IPublicClientApplication app, Prompt prompt, out IAccount? account)
         {
             account = null;
 
-            string[] accounts = app.GetAccountsAsync().Result.Select(x => x.Username).ToArray();
+            IAccount[] accounts = app.GetAccountsAsync().Result.ToArray();
             if (accounts.Length == 0)
             {
                 return false;
             }
 
-            account = prompt.AskOption("Select an account:", accounts);
-            return true;
+            string[] userNames = accounts.Select(x => x.Username).ToArray();
+            string userName = prompt.AskOption("Select an account:", userNames);
+
+            account = accounts.FirstOrDefault(x => x.Username == userName);
+            return account is not null;
         }
 
         private static MsalPrompt? GetPrompt(Prompt prompt)
@@ -230,9 +245,6 @@ namespace msal
             {
                 PromptType.SelectAccount => MsalPrompt.SelectAccount,
                 PromptType.Consent => MsalPrompt.Consent,
-#if NETFRAMEWORK
-                PromptType.Never => MsalPrompt.Never,
-#endif
                 PromptType.ForceLogin => MsalPrompt.ForceLogin,
                 PromptType.NoPrompt => MsalPrompt.NoPrompt,
                 _ => null
@@ -250,13 +262,13 @@ namespace msal
                 case CacheType.InMemory:
                     return;
                 case CacheType.MicrosoftDeveloperShared:
-                    string localAppDataPath = PlatformUtils.IsWindows()
+                    string localAppDataPath = OperatingSystem.IsWindows()
                         ? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)
                         : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local");
                     cacheFilePath = Path.Combine(
                         localAppDataPath,
                         ".IdentityService", "msal.cache");
-                    if (PlatformUtils.IsMacOS())
+                    if (OperatingSystem.IsMacOS())
                     {
                         osxKcService = "Microsoft.Developer.IdentityService";
                         osxKcAccount = "MSALCache";
@@ -265,7 +277,7 @@ namespace msal
                     break;
                 default:
                     cacheFilePath = prompt.AskString("Enter token cache file path:");
-                    if (PlatformUtils.IsMacOS())
+                    if (OperatingSystem.IsMacOS())
                     {
                         osxKcService = prompt.AskString("Enter Keychain service name:");
                         osxKcAccount = prompt.AskString("Enter Keychain account name:");
@@ -279,7 +291,7 @@ namespace msal
             var storagePropsBuilder = new StorageCreationPropertiesBuilder(
                 cacheFileName, cacheDirectory);
 
-            if (PlatformUtils.IsMacOS())
+            if (OperatingSystem.IsMacOS())
             {
                 storagePropsBuilder.WithMacKeyChain(osxKcService, osxKcAccount);
             }
@@ -302,7 +314,7 @@ namespace msal
             ScopeSet scopeSet = prompt.AskOption<ScopeSet>("Select scopes:");
             string[] scopes = scopeSet switch
             {
-                ScopeSet.AzureDevOps => new[] {azureDevOps},
+                ScopeSet.AzureDevOpsDefault => new[] {azureDevOps},
                 ScopeSet.AzureDevOpsCodeFull => new[] {azureDevOpsCodeFull},
                 ScopeSet.MicrosoftGraph => new[] {graphUserRead},
                 ScopeSet.GitHubEmu => new [] {ghEmu},
@@ -357,11 +369,9 @@ namespace msal
                 case FlowType.SystemWebView:
                     ati.WithUseEmbeddedWebView(false);
                     break;
-#if NETFRAMEWORK
                 case FlowType.EmbeddedWebView:
                     ati.WithUseEmbeddedWebView(true);
                     break;
-#endif
             }
 
             AuthenticationResult result = await ati.ExecuteAsync();
@@ -369,13 +379,13 @@ namespace msal
         }
 
         private static async Task<AuthenticationResult> AcquireTokenSilentAsync(
-            IPublicClientApplication pca, string[] scopes, string? loginHint)
+            IPublicClientApplication pca, string[] scopes, IAccount account)
         {
-            return await pca.AcquireTokenSilent(scopes, loginHint).ExecuteAsync();
+            return await pca.AcquireTokenSilent(scopes, account).ExecuteAsync();
         }
 
         private static IPublicClientApplication BuildPca(Uri? authority, string? clientId, string? redirectUri,
-            bool useWam, bool useMsaPt)
+            bool useBroker, bool useMsaPt, bool listOsAccounts)
         {
             // Use dummy client ID if we're only listing accounts in the cache
             clientId ??= Guid.NewGuid().ToString("D");
@@ -388,21 +398,37 @@ namespace msal
             if (redirectUri != null)
                 builder = builder.WithRedirectUri(redirectUri);
 
-            if (useWam)
+            if (useBroker)
             {
-#if NETFRAMEWORK
-                builder.WithExperimentalFeatures();
-                builder.WithWindowsBroker();
-                if (useMsaPt)
-                   builder.WithWindowsBrokerOptions(new WindowsBrokerOptions{
-                       MsaPassthrough = true
-                   });
-#endif
+                builder.WithBroker(
+                    new BrokerOptions(BrokerOptions.OperatingSystems.Windows)
+                    {
+                        Title = "MSAL CLI",
+                        MsaPassthrough = useMsaPt,
+                        ListOperatingSystemAccounts = listOsAccounts,
+                    }
+                );
+
+                SetParentWindowHandle(builder);
             }
 
             IPublicClientApplication pca = builder.Build();
             return pca;
         }
+
+        private static void SetParentWindowHandle(PublicClientApplicationBuilder builder)
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                builder.WithParentActivityOrWindow(() => GetAncestor(GetConsoleWindow(), 3));
+            }
+        }
+
+        [DllImport("kernel32.dll")]
+        private static extern IntPtr GetConsoleWindow();
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetAncestor(IntPtr hWnd, int flags);
 
         private enum ActionType
         {
@@ -414,9 +440,7 @@ namespace msal
         private enum FlowType
         {
             SystemWebView,
-#if NETFRAMEWORK
             EmbeddedWebView,
-#endif
             DeviceCode,
         }
 
@@ -433,6 +457,7 @@ namespace msal
             Organizations,
             MicrosoftCorp,
             MicrosoftServices,
+            MatthewCheetham,
             Custom,
         }
 
@@ -442,6 +467,7 @@ namespace msal
             GitCredentialManager,
             VisualStudio,
             VisualStudioNew,
+            CodesignClient,
             Custom,
         }
 
@@ -456,9 +482,6 @@ namespace msal
             Default,
             SelectAccount,
             Consent,
-#if NETFRAMEWORK
-                Never,
-#endif
             ForceLogin,
             NoPrompt,
         }
@@ -466,7 +489,7 @@ namespace msal
         private enum ScopeSet
         {
             MicrosoftGraph,
-            AzureDevOps,
+            AzureDevOpsDefault,
             AzureDevOpsCodeFull,
             GitHubEmu,
             Custom,
@@ -475,32 +498,9 @@ namespace msal
 
     internal static class PlatformUtils
     {
-        public static bool IsWindows()
-        {
-            return RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-        }
-
         public static bool IsPosix()
         {
-            return IsMacOS() || IsLinux();
+            return OperatingSystem.IsMacOS() || OperatingSystem.IsLinux();
         }
-
-        public static bool IsMacOS()
-        {
-            return RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
-        }
-
-        public static bool IsLinux()
-        {
-            return RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
-        }
-    }
-
-    internal enum OperatingSystemType
-    {
-        Unknown,
-        Windows,
-        OSX,
-        Linux,
     }
 }
