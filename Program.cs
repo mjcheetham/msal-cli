@@ -1,11 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.Identity.Client;
-using Microsoft.Identity.Client.Broker;
+using Microsoft.Identity.Client.Desktop;
 using Microsoft.Identity.Client.Extensions.Msal;
 using Mjcheetham.PromptToolkit;
 using MsalPrompt = Microsoft.Identity.Client.Prompt;
@@ -20,7 +19,7 @@ namespace msal
         private const string MatthewCheethamTenant = "6ac55484-1f79-4c04-ba1b-74e13182258e";
         private const string AzureDevOpsDefault = "499b84ac-1321-427f-aa17-267ca6975798/.default";
         private const string AzureDevOpsCodeFull = "499b84ac-1321-427f-aa17-267ca6975798/vso.code_full";
-        private const string GitHubEMU = "12f6db80-0741-4a7e-b9c5-b85d737b3a31/user_impersonation";
+        private const string GitBundleServerBundleRead = "api://9e9671b3-daa7-49ab-bc03-d77996b27808/Bundle.Read";
         private const string GraphUserRead = "user.read";
         private const string TestApp = "1d18b3b0-251b-4714-a02a-9956cec86c2d";
         private const string VisualStudio = "872cd9fa-d31f-45e0-9eab-6e460a02d1f1";
@@ -30,6 +29,7 @@ namespace msal
         private const string PreProd = "https://login.windows-ppe.net";
         private const string Prod = "https://login.microsoftonline.com";
         private const string Localhost = "http://localhost";
+        private const string LocalhostIpv4 = "http://127.0.0.1";
 
         public static async Task Main(string[] args)
         {
@@ -86,7 +86,7 @@ namespace msal
                         promptType = GetPrompt(prompt);
                     }
 
-                    string[] scopes = GetScopes(prompt, AzureDevOpsDefault, AzureDevOpsCodeFull, GraphUserRead, GitHubEMU);
+                    string[] scopes = GetScopes(prompt, AzureDevOpsDefault, AzureDevOpsCodeFull, GraphUserRead, GitBundleServerBundleRead);
 
                     console.WriteLineInfo("Scopes are {0}", string.Join(", ", scopes));
 
@@ -112,7 +112,7 @@ namespace msal
                 {
                     try
                     {
-                        string[] scopes = GetScopes(prompt, AzureDevOpsDefault, AzureDevOpsCodeFull, GraphUserRead, GitHubEMU);
+                        string[] scopes = GetScopes(prompt, AzureDevOpsDefault, AzureDevOpsCodeFull, GraphUserRead, GitBundleServerBundleRead);
 
                         if (!TryGetAccountAsync(app, prompt, out IAccount? account))
                         {
@@ -190,6 +190,7 @@ namespace msal
             RedirectType redirectType = prompt.AskOption<RedirectType>("Select a redirect URL:");
             string redirectUri = redirectType switch
             {
+                RedirectType.LocalhostIpv4 => LocalhostIpv4,
                 RedirectType.Localhost => Localhost,
                 _ => prompt.AskString("Enter custom redirect URL:")
             };
@@ -309,7 +310,7 @@ namespace msal
 
         private static string[] GetScopes(
             Prompt prompt, string azureDevOps, string azureDevOpsCodeFull, string graphUserRead,
-            string ghEmu)
+            string bundleServerBundleRead)
         {
             ScopeSet scopeSet = prompt.AskOption<ScopeSet>("Select scopes:");
             string[] scopes = scopeSet switch
@@ -317,7 +318,7 @@ namespace msal
                 ScopeSet.AzureDevOpsDefault => new[] {azureDevOps},
                 ScopeSet.AzureDevOpsCodeFull => new[] {azureDevOpsCodeFull},
                 ScopeSet.MicrosoftGraph => new[] {graphUserRead},
-                ScopeSet.GitHubEmu => new [] {ghEmu},
+                ScopeSet.GitBundleServerBundleRead => new [] {bundleServerBundleRead},
                 _ => prompt.AskString("Enter custom scopes:").Split(' ')
             };
             return scopes;
@@ -412,6 +413,8 @@ namespace msal
                 SetParentWindowHandle(builder);
             }
 
+            builder = builder.WithWindowsEmbeddedBrowserSupport();
+
             IPublicClientApplication pca = builder.Build();
             return pca;
         }
@@ -473,6 +476,7 @@ namespace msal
 
         private enum RedirectType
         {
+            LocalhostIpv4,
             Localhost,
             Custom,
         }
@@ -491,7 +495,7 @@ namespace msal
             MicrosoftGraph,
             AzureDevOpsDefault,
             AzureDevOpsCodeFull,
-            GitHubEmu,
+            GitBundleServerBundleRead,
             Custom,
         }
     }
