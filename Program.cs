@@ -2,10 +2,13 @@
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Identity.Client;
 using Microsoft.Identity.Client.Desktop;
 using Microsoft.Identity.Client.Extensions.Msal;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Mjcheetham.PromptToolkit;
 using MsalPrompt = Microsoft.Identity.Client.Prompt;
 using Prompt = Mjcheetham.PromptToolkit.Prompt;
@@ -190,8 +193,8 @@ namespace msal
             RedirectType redirectType = prompt.AskOption<RedirectType>("Select a redirect URL:");
             string redirectUri = redirectType switch
             {
-                RedirectType.LocalhostIpv4 => LocalhostIpv4,
                 RedirectType.Localhost => Localhost,
+                RedirectType.LocalhostIpv4 => LocalhostIpv4,
                 _ => prompt.AskString("Enter custom redirect URL:")
             };
             if (redirectType != RedirectType.Custom)
@@ -330,10 +333,55 @@ namespace msal
             console.WriteLineInfo("User name: {0}", result.Account.Username);
             console.WriteLineInfo("Home tenant ID: {0}", result.Account.HomeAccountId.TenantId);
 
-            bool printFull = prompt.AskBoolean("Print full token value?", false);
+            bool printFull = prompt.AskBoolean("Print raw token value?", false);
             if (printFull)
             {
                 console.WriteLineInfo(result.AccessToken);
+
+                var handler = new JsonWebTokenHandler();
+
+                JsonWebToken? jwt = null;
+                try
+                {
+                    jwt = (JsonWebToken)handler.ReadToken(result.AccessToken);
+                }
+                catch
+                {
+                    // ignored
+                }
+
+                if (jwt is not null)
+                {
+                    console.WriteLineInfo(
+                        jwt.IsEncrypted
+                            ? "Token is an encrypted JWT."
+                            : "Token is an unencrypted JWT."
+                    );
+
+                    if (!jwt.IsEncrypted && prompt.AskBoolean("Print decoded JWT?", false))
+                    {
+                        var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
+                        string Base64ToPrettyJson(string encoded)
+                        {
+                            byte[] bytes = Base64UrlConvert.Decode(encoded);
+                            string json = Encoding.UTF8.GetString(bytes);
+                            var obj = JsonSerializer.Deserialize<JsonElement>(json);
+                            return JsonSerializer.Serialize(obj, jsonOptions);
+                        }
+
+                        var sb = new StringBuilder();
+                        sb.Append(Base64ToPrettyJson(jwt.EncodedHeader));
+                        sb.Append('.');
+                        sb.Append(Base64ToPrettyJson(jwt.EncodedPayload));
+                        sb.Append(".[signature]");
+
+                        console.WriteLineInfo(sb.Replace("{", "{{").Replace("}", "}}").ToString());
+                    }
+                }
+                else
+                {
+                    console.WriteLineAlert("Token is opaque.");
+                }
             }
             else
             {
@@ -476,8 +524,8 @@ namespace msal
 
         private enum RedirectType
         {
-            LocalhostIpv4,
             Localhost,
+            LocalhostIpv4,
             Custom,
         }
 
@@ -505,6 +553,46 @@ namespace msal
         public static bool IsPosix()
         {
             return OperatingSystem.IsMacOS() || OperatingSystem.IsLinux();
+        }
+    }
+
+    internal static class Base64UrlConvert
+    {
+        // The base64url format is the same as regular base64 format except:
+        //   1. character 62 is "-" (minus) not "+" (plus)
+        //   2. character 63 is "_" (underscore) not "/" (slash)
+        private const char Base64PadCharacter = '=';
+        private const char Base64Character62 = '+';
+        private const char Base64Character63 = '/';
+        private const char Base64UrlCharacter62 = '-';
+        private const char Base64UrlCharacter63 = '_';
+
+        public static string Encode(byte[] data, bool includePadding = true)
+        {
+            string base64Url = Convert.ToBase64String(data)
+                .Replace(Base64Character62, Base64UrlCharacter62)
+                .Replace(Base64Character63, Base64UrlCharacter63);
+
+            return includePadding ? base64Url : base64Url.TrimEnd(Base64PadCharacter);
+        }
+
+        public static byte[] Decode(string base64Url)
+        {
+            string base64 = base64Url
+                .Replace(Base64UrlCharacter62, Base64Character62)
+                .Replace(Base64UrlCharacter63, Base64Character63);
+
+            switch (base64.Length % 4)
+            {
+                case 2:
+                    base64 += $"{Base64PadCharacter}{Base64PadCharacter}";
+                    break;
+                case 3:
+                    base64 += Base64PadCharacter.ToString();
+                    break;
+            }
+
+            return Convert.FromBase64String(base64);
         }
     }
 }
