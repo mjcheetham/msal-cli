@@ -22,13 +22,14 @@ namespace msal
         private const string MatthewCheethamTenant = "6ac55484-1f79-4c04-ba1b-74e13182258e";
         private const string AzureDevOpsDefault = "499b84ac-1321-427f-aa17-267ca6975798/.default";
         private const string AzureDevOpsCodeFull = "499b84ac-1321-427f-aa17-267ca6975798/vso.code_full";
-        private const string GitBundleServerBundleRead = "api://9e9671b3-daa7-49ab-bc03-d77996b27808/Bundle.Read";
+        private const string MsGitApiTelemetryReadConfig = "api://33fc41c8-2ac3-4342-8be6-d3ec598622c9/Telemetry.ReadConfig";
         private const string GraphUserRead = "user.read";
         private const string TestApp = "1d18b3b0-251b-4714-a02a-9956cec86c2d";
         private const string VisualStudio = "872cd9fa-d31f-45e0-9eab-6e460a02d1f1";
         private const string VisualStudioNew = "04f0c124-f2bc-4f59-8241-bf6df9866bbd";
         private const string Gcm = "d735b71b-9eee-4a4f-ad23-421660877ba6";
         private const string CodesignClient = "70d4c0bd-fe5f-4266-aa7f-f4d2b540c4be";
+        private const string MsGitTools = "7a060ccb-fcb0-4eff-9819-fbaaf060a012";
         private const string PreProd = "https://login.windows-ppe.net";
         private const string Prod = "https://login.microsoftonline.com";
         private const string Localhost = "http://localhost";
@@ -89,7 +90,7 @@ namespace msal
                         promptType = GetPrompt(prompt);
                     }
 
-                    string[] scopes = GetScopes(prompt, AzureDevOpsDefault, AzureDevOpsCodeFull, GraphUserRead, GitBundleServerBundleRead);
+                    string[] scopes = GetScopes(prompt, AzureDevOpsDefault, AzureDevOpsCodeFull, GraphUserRead, MsGitApiTelemetryReadConfig);
 
                     console.WriteLineInfo("Scopes are {0}", string.Join(", ", scopes));
 
@@ -115,7 +116,7 @@ namespace msal
                 {
                     try
                     {
-                        string[] scopes = GetScopes(prompt, AzureDevOpsDefault, AzureDevOpsCodeFull, GraphUserRead, GitBundleServerBundleRead);
+                        string[] scopes = GetScopes(prompt, AzureDevOpsDefault, AzureDevOpsCodeFull, GraphUserRead, MsGitApiTelemetryReadConfig);
 
                         if (!TryGetAccountAsync(app, prompt, out IAccount? account))
                         {
@@ -215,6 +216,7 @@ namespace msal
                 ClientType.VisualStudio => VisualStudio,
                 ClientType.VisualStudioNew => VisualStudioNew,
                 ClientType.CodesignClient => CodesignClient,
+                ClientType.MsGitTools => MsGitTools,
                 _ => prompt.AskString("Enter custom client ID:")
             };
             if (clientType != ClientType.Custom)
@@ -321,7 +323,7 @@ namespace msal
                 ScopeSet.AzureDevOpsDefault => new[] {azureDevOps},
                 ScopeSet.AzureDevOpsCodeFull => new[] {azureDevOpsCodeFull},
                 ScopeSet.MicrosoftGraph => new[] {graphUserRead},
-                ScopeSet.GitBundleServerBundleRead => new [] {bundleServerBundleRead},
+                ScopeSet.MsGitApiTelemetryReadConfig => new [] {bundleServerBundleRead},
                 _ => prompt.AskString("Enter custom scopes:").Split(' ')
             };
             return scopes;
@@ -519,6 +521,7 @@ namespace msal
             VisualStudio,
             VisualStudioNew,
             CodesignClient,
+            MsGitTools,
             Custom,
         }
 
@@ -543,7 +546,7 @@ namespace msal
             MicrosoftGraph,
             AzureDevOpsDefault,
             AzureDevOpsCodeFull,
-            GitBundleServerBundleRead,
+            MsGitApiTelemetryReadConfig,
             Custom,
         }
     }
